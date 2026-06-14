@@ -2,15 +2,17 @@
   "name": "video-editor",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon src/index.js --ignore ./public",
+    "start": "node --env-file=./src/.env --watch-path=./src --trace-warnings src/index.js",
     "cluster": "nodemon src/cluster.js --ignore ./public"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cpeak": "^1.4.0"
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3"
   }
 }

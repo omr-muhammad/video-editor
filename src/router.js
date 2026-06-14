@@ -1,20 +1,13 @@
 // Controllers
-const User = require("./controllers/user");
+import * as User from "./controllers/user.js";
+import { Router } from "express";
 
-module.exports = (server) => {
-  // ------------------------------------------------ //
-  // ************ USER ROUTES ************* //
-  // ------------------------------------------------ //
+export const userRouter = Router();
 
-  // Log a user in and give them a token
-  server.route("post", "/api/login", User.logUserIn);
+userRouter
+  .post("/api/login", User.logUserIn)
+  .delete("/api/logout", User.protect, User.logUserOut);
 
-  // Log a user out
-  server.route("delete", "/api/logout", User.logUserOut);
+userRouter.use(User.protect);
 
-  // Send user info
-  server.route("get", "/api/user", User.sendUserInfo);
-
-  // Update a user info
-  server.route("put", "/api/user", User.updateUser);
-};
+userRouter.route("/api/user").get(User.sendUserInfo).put(User.updateUser);

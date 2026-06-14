@@ -1,30 +1,32 @@
-const cpeak = require("cpeak");
-const { authenticate, serverIndex } = require("./middleware/index.js");
-const apiRouter = require("./router.js");
+import express from "express";
+import { serverIndex } from "./middleware/index.js";
+import * as apiRouter from "./router.js";
 
-const PORT = 8060;
+const PORT = 8000;
 
-const server = new cpeak();
+const app = express();
 
 // ------ Middlewares ------ //
 
 // For serving static files
-server.beforeEach(cpeak.serveStatic("./public"));
+app.use(express.static("public"));
 
 // For parsing JSON body
-server.beforeEach(cpeak.parseJSON);
-
-// For authentication
-server.beforeEach(authenticate);
+app.use(express.json());
 
 // For different routes that need the index.html file
-server.beforeEach(serverIndex);
+app.use(serverIndex);
 
 // ------ API Routes ------ //
-apiRouter(server);
+app.use("/api", apiRouter.userRouter);
 
+app.all("{*splat}", (req, res, next) => {
+  return res
+    .status(404)
+    .json({ error: `${req.originalUrl} is not found on the server` });
+});
 // Handle all the errors that could happen in the routes
-server.handleErr((error, req, res) => {
+app.use((error, req, res) => {
   if (error && error.status) {
     res.status(error.status).json({ error: error.message });
   } else {
@@ -35,6 +37,6 @@ server.handleErr((error, req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Server has started on port ${PORT}`);
 });
