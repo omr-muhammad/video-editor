@@ -49,7 +49,7 @@ export function logUserOut(req, res, next) {
 
 export function sendUserInfo(req, res) {
   db.update();
-  const user = db.users.find((user) => user.id === req.userId);
+  const user = db.users.find((user) => user.id === req.user.id);
   res.status(200).json({ username: user.username, name: user.name });
 }
 

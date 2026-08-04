@@ -4,6 +4,7 @@ import promiseFs from "node:fs/promises";
 import fs from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { VideoValidator } from "../streams/videoValidator.js";
+import * as FF from "../lib/ff.js";
 import { db } from "../DB.js";
 
 const ALLOWED_EXT = new Set(["mp4", "mov", "webm", "mkv", "avi"]);
@@ -25,6 +26,7 @@ export async function uploadVideo(req, res, next) {
   const videoId = crypto.randomBytes(4).toString("hex");
   const parentPath = `./storage/${videoId}`;
   const vidPath = path.join(parentPath, `original.${ext}`);
+  const thumbnailPath = path.join(parentPath, `thumbnail.jpg`);
 
   try {
     await promiseFs.mkdir(parentPath, { recursive: true });
@@ -33,6 +35,9 @@ export async function uploadVideo(req, res, next) {
     const validator = new VideoValidator();
 
     await pipeline(req, validator, fileStream);
+
+    // creating video thumbnail
+    await FF.makeThumbnails(vidPath, thumbnailPath);
 
     // store to db;
     db.update();
@@ -53,6 +58,7 @@ export async function uploadVideo(req, res, next) {
       message: "Uploaded successfully.",
     });
   } catch (e) {
+    // @CUSTOM_ERROR
     if (e.code !== "ECONNRESET") throw e;
     // delete folder && don't throw error if file not exist
     await promiseFs.rm(parentPath, { recursive: true, force: true });
