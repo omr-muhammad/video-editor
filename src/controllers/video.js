@@ -39,13 +39,17 @@ export async function uploadVideo(req, res, next) {
     // creating video thumbnail
     await FF.makeThumbnails(vidPath, thumbnailPath);
 
+    // get video dimensions
+    const dimensions = await FF.getDimensions(vidPath);
+
     // store to db;
     db.update();
     db.videos.unshift({
       id: db.videos.length,
       videoId,
       name,
-      ext,
+      extension: ext,
+      dimensions,
       userId: req.user.id,
       extractedAudio: false,
       resizes: {},
@@ -63,4 +67,11 @@ export async function uploadVideo(req, res, next) {
     // delete folder && don't throw error if file not exist
     await promiseFs.rm(parentPath, { recursive: true, force: true });
   }
+}
+
+export async function getVideos(req, res, next) {
+  db.update();
+  const userVideos = db.videos.filter((v) => v.userId === req.user.id);
+
+  res.status(200).json(userVideos || []);
 }
