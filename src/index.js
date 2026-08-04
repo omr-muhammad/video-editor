@@ -1,6 +1,10 @@
 import express from "express";
 import { serverIndex } from "./middleware/index.js";
-import * as apiRouter from "./router.js";
+import * as User from "./controllers/user.js";
+import * as Video from "./controllers/video.js";
+
+import path from "node:path";
+import cookieParser from "cookie-parser";
 
 const PORT = 8000;
 
@@ -17,8 +21,20 @@ app.use(express.json());
 // For different routes that need the index.html file
 app.use(serverIndex);
 
+app.use(cookieParser());
+
 // ------ API Routes ------ //
-app.use("/api", apiRouter.userRouter);
+app.post("/api/login", User.logUserIn);
+
+app.delete("/api/logout", User.protect, User.logUserOut);
+
+app
+  // .use()
+  .route("/api/user")
+  .get(User.protect, User.sendUserInfo)
+  .put(User.protect, User.updateUser);
+
+app.post("/api/upload-video", User.protect, Video.uploadVideo);
 
 app.all("{*splat}", (req, res, next) => {
   return res

@@ -11,8 +11,8 @@ export function protect(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.jwt_secret);
 
-    dbupdate();
-    const user = dbusers.find((u) => u.id === decoded.id);
+    db.update();
+    const user = db.users.find((u) => u.id === decoded.id);
 
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     // throw new AppError(401, "User belongs to this token is no longer exist");
@@ -28,8 +28,8 @@ export function protect(req, res, next) {
 export function logUserIn(req, res, next) {
   const { username, password } = req.body;
 
-  dbupdate();
-  const user = dbusers.find((user) => user.username === username);
+  db.update();
+  const user = db.users.find((user) => user.username === username);
 
   if (!user || user.password !== password)
     return res.status(401).json({ message: "Invalid username or password." });
@@ -48,8 +48,8 @@ export function logUserOut(req, res, next) {
 }
 
 export function sendUserInfo(req, res) {
-  dbupdate();
-  const user = dbusers.find((user) => user.id === req.userId);
+  db.update();
+  const user = db.users.find((user) => user.id === req.userId);
   res.status(200).json({ username: user.username, name: user.name });
 }
 
@@ -59,8 +59,8 @@ export function updateUser(req, res) {
   const password = req.body.password;
 
   // Grab the user object that is currently logged in
-  dbupdate();
-  const user = dbusers.find((user) => user.id === req.userId);
+  db.update();
+  const user = db.users.find((user) => user.id === req.userId);
 
   user.username = username;
   user.name = name;
@@ -70,7 +70,7 @@ export function updateUser(req, res) {
     user.password = password;
   }
 
-  dbsave();
+  db.save();
 
   res.status(200).json({
     username: user.username,

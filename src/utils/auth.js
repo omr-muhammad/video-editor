@@ -9,7 +9,7 @@ function createJWToken(id) {
 }
 
 export function createSendToken(user, stsCode, res, rememberMe = false) {
-  const token = createJWToken(user._id);
+  const token = createJWToken(user.id);
 
   const threeDays = parseInt(JWT_EXP) * 24 * 60 * 60 * 1000;
   const cookieOptions = {
