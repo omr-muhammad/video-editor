@@ -35,6 +35,7 @@ app
   .put(User.protect, User.updateUser);
 
 app.get("/api/videos", User.protect, Video.getVideos);
+app.get("/get-video-asset", User.protect, Video.getVideoAsset);
 app.post("/api/upload-video", User.protect, Video.uploadVideo);
 
 app.all("{*splat}", (req, res, next) => {
