@@ -28,6 +28,50 @@ const videoMimeTypes = {
   mpg: "video/mpeg",
 };
 
+const codecToExtension = {
+  aac: "m4a",
+  mp3: "mp3",
+  opus: "opus",
+  vorbis: "ogg",
+  flac: "flac",
+  alac: "m4a",
+  pcm_s16le: "wav",
+  pcm_s24le: "wav",
+  pcm_s32le: "wav",
+  pcm_f32le: "wav",
+  ac3: "ac3",
+  eac3: "eac3",
+  dts: "dts",
+  wmav2: "wma",
+  wmapro: "wma",
+  amr_nb: "amr",
+  amr_wb: "amr",
+  mp2: "mp2",
+  truehd: "thd",
+};
+
+const codecToMimeType = {
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  opus: "audio/opus",
+  vorbis: "audio/ogg",
+  flac: "audio/flac",
+  alac: "audio/mp4",
+  pcm_s16le: "audio/wav",
+  pcm_s24le: "audio/wav",
+  pcm_s32le: "audio/wav",
+  pcm_f32le: "audio/wav",
+  ac3: "audio/ac3",
+  eac3: "audio/eac3",
+  dts: "audio/vnd.dts",
+  wmav2: "audio/x-ms-wma",
+  wmapro: "audio/x-ms-wma",
+  amr_nb: "audio/amr",
+  amr_wb: "audio/amr-wb",
+  mp2: "audio/mpeg",
+  truehd: "audio/x-truehd",
+};
+
 export async function uploadVideo(req, res, next) {
   const filename = req.headers.filename;
 
@@ -114,9 +158,52 @@ export async function getVideoAsset(req, res, next) {
   await sendAsset(metadata, res);
 }
 
+export async function extractAudio(req, res, next) {
+  const { videoId } = req.query;
+
+  // @CUSTOM_ERROR
+  if (!videoId) throw new Error(`Video id is required.`);
+
+  db.update();
+  const video = db.videos.find((v) => v.videoId === videoId);
+
+  // @CUSTOM_ERROR
+  if (!video) throw new Error(`Video with id: ${videoId} not found`);
+
+  // @CUSTOM_ERROR
+  if (video.extractedAudio)
+    throw new Error(`Audio already extracted for ${video.name} video.`);
+
+  video.extractedAudio = true;
+  db.save();
+
+  let audioPath = "";
+  try {
+    const originalVideoPath = `./storage/${videoId}/original.${video.extension}`;
+    const codec = await FF.getAudioCodec(originalVideoPath);
+    const audioExtension = codecToExtension[codec];
+    audioPath = `./storage/${videoId}/audio.${audioExtension}`;
+
+    await FF.extractAudio(originalVideoPath, audioPath);
+
+    video.audioCodec = codec;
+    db.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Audio extracted successfully.",
+    });
+  } catch (e) {
+    // no Error if file not exist
+    await promiseFs.rm(audioPath, { recursive: true, force: true });
+    // @CUSTOM_ERROR
+    throw e;
+  }
+}
+
 // helpers
 function getMetadata(type, vRecord, dimensions) {
-  const { videoId, name, extension } = vRecord;
+  const { videoId, name, extension, audioCodec } = vRecord;
 
   let filePath = "";
   let filename = "";
@@ -136,9 +223,9 @@ function getMetadata(type, vRecord, dimensions) {
       break;
 
     case "audio":
-      filePath = `./storage/${videoId}/audio.acc`;
-      filename = `${name}-audio.acc`;
-      mimeType = "audio/acc";
+      filePath = `./storage/${videoId}/audio.${codecToExtension[audioCodec]}`;
+      filename = `${name}-audio.${codecToExtension[audioCodec]}`;
+      mimeType = codecToMimeType[audioCodec];
       break;
 
     case "resize":

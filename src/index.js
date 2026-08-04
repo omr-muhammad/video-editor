@@ -37,6 +37,7 @@ app
 app.get("/api/videos", User.protect, Video.getVideos);
 app.get("/get-video-asset", User.protect, Video.getVideoAsset);
 app.post("/api/upload-video", User.protect, Video.uploadVideo);
+app.patch("/api/video/extract-audio", User.protect, Video.extractAudio);
 
 app.all("{*splat}", (req, res, next) => {
   return res
