@@ -96,46 +96,83 @@ export async function getVideos(req, res, next) {
 }
 
 export async function getVideoAsset(req, res, next) {
-  const { videoId, type } = req.query;
+  // if type === resize dimension is required
+  const { videoId, type, dimensions } = req.query;
 
   // @CUSTOM_ERROR
   if (!videoId || !type) throw new Error(`Video id and type are missing.`);
 
-  if (type === "thumbnail") return sendVideoThumbnail(res, videoId);
-  else if (type === "original") return sendOriginal(res, videoId);
+  // @CUSTOM_ERROR
+  if (type === "resize" && !dimensions)
+    throw new Error(`Dimensions is required when type resize.`);
+
+  db.update();
+  const video = db.videos.find((v) => v.videoId === videoId);
+
+  const metadata = getMetadata(type, video, dimensions);
+
+  await sendAsset(metadata, res);
 }
 
 // helpers
-async function sendVideoThumbnail(res, videoId) {
-  try {
-    const thumbnailPath = `./storage/${videoId}/thumbnail.jpg`;
-    const readStream = fs.createReadStream(thumbnailPath);
-    const stats = await util.promisify(fs.stat)(thumbnailPath);
+function getMetadata(type, vRecord, dimensions) {
+  const { videoId, name, extension } = vRecord;
 
-    res.setHeader("Content-Type", "image/jpeg");
+  let filePath = "";
+  let filename = "";
+  let mimeType = "";
+
+  switch (type) {
+    case "thumbnail":
+      filePath = `./storage/${videoId}/thumbnail.jpg`;
+      filename = "thumbnail.jpg";
+      mimeType = "image/jpeg";
+      break;
+
+    case "original":
+      filePath = `./storage/${videoId}/original.${extension}`;
+      filename = `${name}.${extension}`;
+      mimeType = videoMimeTypes[extension];
+      break;
+
+    case "audio":
+      filePath = `./storage/${videoId}/audio.acc`;
+      filename = `${name}-audio.acc`;
+      mimeType = "audio/acc";
+      break;
+
+    case "resize":
+      filePath = `./storage/${videoId}/${dimensions}.${extension}`;
+      filename = `${name}-${dimensions}.${extension}`;
+      mimeType = videoMimeTypes[extension];
+      break;
+
+    default:
+      // @CUSTOM_ERROR
+      throw new Error(`Not supported query fields.`);
+  }
+
+  return { filePath, filename, mimeType };
+}
+
+async function sendAsset(metadata, res) {
+  const { filename, filePath, mimeType } = metadata;
+
+  try {
+    const readStream = fs.createReadStream(filePath);
+    const stats = await util.promisify(fs.stat)(filePath);
+
+    if (mimeType !== "image/jpeg") {
+      res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    }
+
+    res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Length", stats.size);
     res.status(200);
 
     await pipeline(readStream, res);
   } catch (e) {
-    //@CUSTOM_ERROR
+    // @CUSTOM_ERROR
     throw e;
   }
-}
-
-async function sendOriginal(res, videoId) {
-  db.update();
-  const { name, extension } = db.videos.find((v) => v.videoId === videoId);
-
-  const videoPath = `./storage/${videoId}/original.${extension}`;
-  const videoStream = fs.createReadStream(videoPath);
-  const stats = await util.promisify(fs.stat)(videoPath);
-  const filename = `${name}.${extension}`;
-
-  res.setHeader("Content-Type", videoMimeTypes[extension]);
-  res.setHeader("Content-Length", stats.size);
-  res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
-  res.status(200);
-
-  await pipeline(videoStream, res);
 }
