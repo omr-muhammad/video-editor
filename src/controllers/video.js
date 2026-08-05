@@ -201,6 +201,43 @@ export async function extractAudio(req, res, next) {
   }
 }
 
+export async function resize(req, res, next) {
+  let { videoId, width, height } = req.body;
+
+  // @CUSTOM_ERROR
+  if (!videoId || !Number(width) || !Number(height))
+    throw new Error(`Missing required data.`);
+
+  db.update();
+  const video = db.videos.find((v) => v.videoId === videoId);
+
+  // @CUSTOM_ERROR
+  if (!video) throw new Error(`Video with id: ${videoId} not found.`);
+
+  video.resizes[width + "x" + height] = { processing: true };
+
+  const orignalPath = `./storage/${videoId}/original.${video.extension}`;
+  const targetPath = `./storage/${videoId}/resizes/${width}x${height}.${video.extension}`;
+
+  try {
+    await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
+    await FF.resize(orignalPath, targetPath, Number(width), Number(height));
+
+    video.resizes[width + "x" + height] = { processing: false };
+    db.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Video resized successfully.",
+    });
+  } catch (e) {
+    await promiseFs.rm(targetPath, { recursive: true, force: true });
+
+    // @CUSTOM_ERROR
+    throw e;
+  }
+}
+
 // helpers
 function getMetadata(type, vRecord, dimensions) {
   const { videoId, name, extension, audioCodec } = vRecord;
@@ -229,7 +266,7 @@ function getMetadata(type, vRecord, dimensions) {
       break;
 
     case "resize":
-      filePath = `./storage/${videoId}/${dimensions}.${extension}`;
+      filePath = `./storage/${videoId}/resizes/${dimensions}.${extension}`;
       filename = `${name}-${dimensions}.${extension}`;
       mimeType = videoMimeTypes[extension];
       break;

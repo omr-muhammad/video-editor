@@ -101,3 +101,25 @@ export function extractAudio(videoPath, targetAudioPath) {
     });
   });
 }
+
+export function resize(originalPath, targetPath, width, height) {
+  return new Promise((res, rej) => {
+    const child = spawn("ffmpeg", [
+      "-i",
+      originalPath,
+      "-vf",
+      `scale=${width}:${height}`,
+      "-c:a",
+      "copy",
+      targetPath,
+    ]);
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+
+    child.on("close", (code) => {
+      if (code === 0) res();
+      else rej(`ffmpeg exist with code ${code}: ${stderr}`);
+    });
+  });
+}
