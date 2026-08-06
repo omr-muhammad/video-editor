@@ -7,6 +7,7 @@ import { VideoValidator } from "../streams/videoValidator.js";
 import * as FF from "../lib/ff.js";
 import { db } from "../DB.js";
 import util from "node:util";
+import * as jobQ from "../lib/queue.js";
 
 const ALLOWED_EXT = new Set(["mp4", "mov", "webm", "mkv", "avi"]);
 
@@ -214,28 +215,17 @@ export async function resize(req, res, next) {
   // @CUSTOM_ERROR
   if (!video) throw new Error(`Video with id: ${videoId} not found.`);
 
-  video.resizes[width + "x" + height] = { processing: true };
+  jobQ.enqueue({
+    type: "resize",
+    videoId,
+    width,
+    height,
+  });
 
-  const orignalPath = `./storage/${videoId}/original.${video.extension}`;
-  const targetPath = `./storage/${videoId}/resizes/${width}x${height}.${video.extension}`;
-
-  try {
-    await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
-    await FF.resize(orignalPath, targetPath, Number(width), Number(height));
-
-    video.resizes[width + "x" + height] = { processing: false };
-    db.save();
-
-    return res.status(200).json({
-      status: "success",
-      message: "Video resized successfully.",
-    });
-  } catch (e) {
-    await promiseFs.rm(targetPath, { recursive: true, force: true });
-
-    // @CUSTOM_ERROR
-    throw e;
-  }
+  return res.status(200).json({
+    status: "success",
+    message: `Generating ${width}x${height} for ${video.name} video.`,
+  });
 }
 
 // helpers
