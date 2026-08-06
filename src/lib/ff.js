@@ -105,6 +105,7 @@ export function extractAudio(videoPath, targetAudioPath) {
 export function resize(originalPath, targetPath, width, height) {
   return new Promise((res, rej) => {
     const child = spawn("ffmpeg", [
+      "-y", // override if file alreay exist
       "-i",
       originalPath,
       "-vf",
@@ -117,9 +118,14 @@ export function resize(originalPath, targetPath, width, height) {
     let stderr = "";
     child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
 
+    child.on("error", (err) => console.error("Error in resizing: ", err));
+
     child.on("close", (code) => {
-      if (code === 0) res();
-      else rej(`ffmpeg exist with code ${code}: ${stderr}`);
+      if (code === 0) {
+        res();
+      } else {
+        rej(new Error(`ffmpeg exist with code ${code}: ${stderr}`));
+      }
     });
   });
 }

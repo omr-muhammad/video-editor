@@ -5,6 +5,8 @@ import * as FF from "./ff.js";
 const jobs = [];
 let currentJob = null;
 
+restartUnprocessedResizes();
+
 export function enqueue(newJob) {
   jobs.push(newJob);
   executeNext();
@@ -31,6 +33,7 @@ async function execute() {
 
   try {
     await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
+    console.log("resizes directory created");
     await FF.resize(orignalPath, targetPath, Number(width), Number(height));
 
     video.resizes[width + "x" + height] = { processing: false };
@@ -55,4 +58,17 @@ function executeNext() {
   if (!currentJob) return;
 
   execute(); // no need to await since it won't executeNext until finishing currentJob
+}
+
+function restartUnprocessedResizes() {
+  db.update();
+
+  db.videos.forEach((v) => {
+    for (const [diemnsions, state] of Object.entries(v.resizes)) {
+      if (state.processing) {
+        const [width, height] = diemnsions.split("x");
+        enqueue({ type: "resize", videoId: v.videoId, width, height });
+      }
+    }
+  });
 }
