@@ -7,9 +7,9 @@ import { VideoValidator } from "../streams/videoValidator.js";
 import * as FF from "../lib/ff.js";
 import { db } from "../DB.js";
 import util from "node:util";
-import * as jobQ from "../lib/queue.js";
 
 const ALLOWED_EXT = new Set(["mp4", "mov", "webm", "mkv", "avi"]);
+const isCluster = process.env.cluster_mode === "on";
 
 const videoMimeTypes = {
   mp4: "video/mp4",
@@ -215,12 +215,19 @@ export async function resize(req, res, next) {
   // @CUSTOM_ERROR
   if (!video) throw new Error(`Video with id: ${videoId} not found.`);
 
-  jobQ.enqueue({
+  const resizeObj = {
     type: "resize",
     videoId,
     width,
     height,
-  });
+  };
+
+  if (isCluster) process.send({ type: "newResize", data: resizeObj });
+  else {
+    const jobsQ = await import("../lib/queue.js");
+
+    jobsQ.enqueue(resizeObj);
+  }
 
   return res.status(200).json({
     status: "success",

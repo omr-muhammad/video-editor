@@ -33,7 +33,6 @@ async function execute() {
 
   try {
     await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
-    console.log("resizes directory created");
     await FF.resize(orignalPath, targetPath, Number(width), Number(height));
 
     video.resizes[width + "x" + height] = { processing: false };

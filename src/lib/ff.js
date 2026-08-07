@@ -105,13 +105,15 @@ export function extractAudio(videoPath, targetAudioPath) {
 export function resize(originalPath, targetPath, width, height) {
   return new Promise((res, rej) => {
     const child = spawn("ffmpeg", [
-      "-y", // override if file alreay exist
       "-i",
       originalPath,
       "-vf",
       `scale=${width}:${height}`,
       "-c:a",
       "copy",
+      "-threads",
+      "2",
+      "-y", // override if file alreay exist
       targetPath,
     ]);
 

@@ -60,7 +60,7 @@ export function updateUser(req, res) {
 
   // Grab the user object that is currently logged in
   db.update();
-  const user = db.users.find((user) => user.id === req.userId);
+  const user = db.users.find((user) => user.id === req.user.id);
 
   user.username = username;
   user.name = name;

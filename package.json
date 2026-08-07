@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --env-file=./src/.env --watch-path=./src --trace-warnings src/index.js",
-    "cluster": "nodemon src/cluster.js --ignore ./public"
+    "cluster": "cluster_mode=on node --env-file=./src/.env --watch-path=./src --trace-warnings src/cluster.js"
   },
   "author": "",
   "license": "ISC",
