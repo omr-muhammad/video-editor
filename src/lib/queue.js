@@ -41,7 +41,10 @@ async function execute() {
     await promiseFs.rm(targetPath, { recursive: true, force: true });
 
     // @CUSTOM_ERROR
-    throw e;
+    console.error("EXECUTE FN ERR: ", e);
+
+    if (e instanceof Error) throw e;
+    else throw new Error(`Something went wrong while resizing.`);
   } finally {
     currentJob = null;
     return executeNext();

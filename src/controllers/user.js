@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 export function protect(req, res, next) {
   const token = req.cookies.auth;
 
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  if (!token) return next({ status: 401, message: `UNAUTHORIZED: token is invalid please login.`})
   // throw new AppError(401, "Access denied, Please logged in to get access.");
 
   try {
@@ -14,12 +14,14 @@ export function protect(req, res, next) {
     db.update();
     const user = db.users.find((u) => u.id === decoded.id);
 
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!user) return next({ status: 401, message: `UNAUTHORIZED: User belongs to this token is no longer exist.`})
     // throw new AppError(401, "User belongs to this token is no longer exist");
 
     req.user = user;
   } catch (err) {
-    res.status(401).json({ error: "Unauthorized" });
+    console.error(`PROTECT USER MIDDLEWARE ERR: `, err);
+
+    return next({ status: 401, message: `UNAUTHORIZED.`})
   }
 
   next();
@@ -32,7 +34,7 @@ export function logUserIn(req, res, next) {
   const user = db.users.find((user) => user.username === username);
 
   if (!user || user.password !== password)
-    return res.status(401).json({ message: "Invalid username or password." });
+    return next({ status: 400, message: "Invalid username or password." })
 
   return createSendToken(user, 200, res);
 }
@@ -50,6 +52,9 @@ export function logUserOut(req, res, next) {
 export function sendUserInfo(req, res) {
   db.update();
   const user = db.users.find((user) => user.id === req.user.id);
+
+  if (!user) next({ status: 404, message: `User with id: ${req.user.id} not found.` });
+
   res.status(200).json({ username: user.username, name: user.name });
 }
 
@@ -61,6 +66,8 @@ export function updateUser(req, res) {
   // Grab the user object that is currently logged in
   db.update();
   const user = db.users.find((user) => user.id === req.user.id);
+
+  if (!user) next({ status: 404, message: `User with id: ${req.user.id} not found.` });
 
   user.username = username;
   user.name = name;

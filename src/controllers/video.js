@@ -77,7 +77,7 @@ export async function uploadVideo(req, res, next) {
   const filename = req.headers.filename;
 
   // @CUSTOM_ERROR
-  if (!filename) throw new Error("No file provided.");
+  if (!filename) next({ status: 422, message: "No file provided." })
 
   const parsedFile = path.parse(filename);
   const name = parsedFile.name;
@@ -85,7 +85,7 @@ export async function uploadVideo(req, res, next) {
 
   // @CUSTOM_ERROR
   if (!ALLOWED_EXT.has(ext))
-    throw new Error(`Error: extension: ${ext || "none"} is not allowed.`);
+    next({ status: 422, message: `Error: extension: ${ext || "none"} is not allowed.`})
 
   const videoId = crypto.randomBytes(4).toString("hex");
   const parentPath = `./storage/${videoId}`;
@@ -127,7 +127,13 @@ export async function uploadVideo(req, res, next) {
     });
   } catch (e) {
     // @CUSTOM_ERROR
-    if (e.code !== "ECONNRESET") throw e;
+    if (e.code !== "ECONNRESET") {
+      console.error(e);
+      if (e instanceof Error)
+        next({ status: 422, messag: e.message })
+
+      else next({ status: 500, message: e.message || "UNKNOWN ERR" })
+    };
     // delete folder && don't throw error if file not exist
     await promiseFs.rm(parentPath, { recursive: true, force: true });
   }
@@ -145,35 +151,43 @@ export async function getVideoAsset(req, res, next) {
   const { videoId, type, dimensions } = req.query;
 
   // @CUSTOM_ERROR
-  if (!videoId || !type) throw new Error(`Video id and type are missing.`);
+  if (!videoId || !type) next({ status: 400, message: `Missing required data (video id, type).` });
 
   // @CUSTOM_ERROR
   if (type === "resize" && !dimensions)
-    throw new Error(`Dimensions is required when type resize.`);
+    next({ status: 400, message: `Dimensions is required when type resize.`})
 
   db.update();
   const video = db.videos.find((v) => v.videoId === videoId);
 
-  const metadata = getMetadata(type, video, dimensions);
+  try {
+    const metadata = getMetadata(type, video, dimensions);
 
-  await sendAsset(metadata, res);
+    await sendAsset(metadata, res);
+  } catch (e) {
+    console.error("GETTING VIDEO ASSET ERR: ", e);
+
+    if (e instanceof Error) next({ status: 400, message: e.message });
+    else next({ status: 500, message: "Something went wrong while getting video asset."})
+  }
+
 }
 
 export async function extractAudio(req, res, next) {
   const { videoId } = req.query;
 
   // @CUSTOM_ERROR
-  if (!videoId) throw new Error(`Video id is required.`);
+  if (!videoId) next({ status: 400, message: `Video id is required.` });
 
   db.update();
   const video = db.videos.find((v) => v.videoId === videoId);
 
   // @CUSTOM_ERROR
-  if (!video) throw new Error(`Video with id: ${videoId} not found`);
+  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found` });
 
   // @CUSTOM_ERROR
   if (video.extractedAudio)
-    throw new Error(`Audio already extracted for ${video.name} video.`);
+    next({ status: 400, message: `Audio already extracted for ${video.name} video.` });
 
   video.extractedAudio = true;
   db.save();
@@ -198,7 +212,10 @@ export async function extractAudio(req, res, next) {
     // no Error if file not exist
     await promiseFs.rm(audioPath, { recursive: true, force: true });
     // @CUSTOM_ERROR
-    throw e;
+    console.error("EXTRACTING AUDIO ERR: ", e);
+
+    if (e instanceof Error) next({ status: 400, message: e.message });
+    else next({ status: 500, message: `Something went wrong while extracting audio`})
   }
 }
 
@@ -207,13 +224,13 @@ export async function resize(req, res, next) {
 
   // @CUSTOM_ERROR
   if (!videoId || !Number(width) || !Number(height))
-    throw new Error(`Missing required data.`);
+    next({ status: 400, message: `Missing required data.` });
 
   db.update();
   const video = db.videos.find((v) => v.videoId === videoId);
 
   // @CUSTOM_ERROR
-  if (!video) throw new Error(`Video with id: ${videoId} not found.`);
+  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found.` });
 
   const resizeObj = {
     type: "resize",
@@ -225,8 +242,12 @@ export async function resize(req, res, next) {
   if (isCluster) process.send({ type: "newResize", data: resizeObj });
   else {
     const jobsQ = await import("../lib/queue.js");
-
+    try {
     jobsQ.enqueue(resizeObj);
+    } catch (e) {
+      if (e.message) return next({ status: 400, message: e.message });
+      else return next({ status: 500, message: `Something went wrong while resizing.`})
+    }
   }
 
   return res.status(200).json({
