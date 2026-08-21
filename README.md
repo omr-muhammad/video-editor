@@ -87,7 +87,7 @@ public/               # frontend (static bundle)
 ## Upcoming Features
 
 - [ ] Hash passwords
-- [ ] Better error handling
+- [x] Better error handling
 - [ ] Delete video endpoint
 - [ ] Track audio-extraction status
 - [ ] HTTP range support for streaming
