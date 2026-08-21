@@ -1,1 +1,22 @@
-[{"id":0,"videoId":"64516c74","name":"Screen-Recording","extension":"mp4","dimensions":{"width":"1920","height":"1080"},"userId":1,"extractedAudio":true,"audioCodec":"opus","resizes":{"320x240":{"processing":false},"600x600":{"processing":false},"700x700":{"processing":false},"800x800":{"processing":false},"900x900":{"processing":false},"1000x1000":{"processing":false},"1200x1000":{"processing":false},"600x400":{"processing":false}}}]
+[
+  {
+    "id": 0,
+    "videoId": "64516c74",
+    "name": "Screen-Recording",
+    "extension": "mp4",
+    "dimensions": { "width": "1920", "height": "1080" },
+    "userId": 1,
+    "extractedAudio": true,
+    "audioCodec": "opus",
+    "resizes": {
+      "320x240": { "processing": false },
+      "600x600": { "processing": false },
+      "700x700": { "processing": false },
+      "800x800": { "processing": false },
+      "900x900": { "processing": false },
+      "1000x1000": { "processing": false },
+      "1200x1000": { "processing": false },
+      "600x400": { "processing": false }
+    }
+  }
+]
