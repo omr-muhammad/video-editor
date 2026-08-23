@@ -98,13 +98,11 @@ const videoSchema = new mongoose.Schema(
 );
 
 // --------- Hooks ---------
-videoSchema.pre("save", function (next) {
+videoSchema.pre("save", function () {
   if (this.isNew) {
     this.audio ??= {};
     this.resizes ??= {};
   }
-
-  next();
 });
 
 export const Video = mongoose.model("videos", videoSchema);

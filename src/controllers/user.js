@@ -1,21 +1,21 @@
-import { db } from "../DB.js";
+import { User } from "../db/models/user.js";
 import { createSendToken } from "../utils/auth.js";
 import jwt from "jsonwebtoken";
 
-export function protect(req, res, next) {
+export async function protect(req, res, next) {
   const token = req.cookies.auth;
 
-  if (!token) return next({ status: 401, message: `UNAUTHORIZED: token is invalid please login.`})
-  // throw new AppError(401, "Access denied, Please logged in to get access.");
+  if (!token) return next({ status: 401, message: `UNAUTHORIZED: token is invalid please login.` });
 
   try {
     const decoded = jwt.verify(token, process.env.jwt_secret);
 
-    db.update();
-    const user = db.users.find((u) => u.id === decoded.id);
+    const user = await User.findById(decoded.id).select("-password -__v");
 
-    if (!user) return next({ status: 401, message: `UNAUTHORIZED: User belongs to this token is no longer exist.`})
-    // throw new AppError(401, "User belongs to this token is no longer exist");
+    if (!user) return next({ status: 401, message: `UN_AUTH: User belongs to this token is no longer exist.`})
+
+    if (decoded.tokenV < user.tokenVersion)
+      return next({ status: 401, message: "UN_AUTH: Token expired, please login again." })
 
     req.user = user;
   } catch (err) {
@@ -27,14 +27,15 @@ export function protect(req, res, next) {
   next();
 }
 
-export function logUserIn(req, res, next) {
+export async function logUserIn(req, res, next) {
   const { username, password } = req.body;
 
-  db.update();
-  const user = db.users.find((user) => user.username === username);
+  const user = await User.findOne({ username });
 
-  if (!user || user.password !== password)
-    return next({ status: 400, message: "Invalid username or password." })
+  if (!user)
+    return next({ status: 404, message: "User not found, signup instead." });
+
+  if (!(await user.checkPasswordMatch(password))) return next({ status: 400, message: "Invalid credentials."})
 
   return createSendToken(user, 200, res);
 }
@@ -49,39 +50,48 @@ export function logUserOut(req, res, next) {
   res.status(200).json({ message: "Logged out successfully!" });
 }
 
-export function sendUserInfo(req, res) {
-  db.update();
-  const user = db.users.find((user) => user.id === req.user.id);
+export async function sendUserInfo(req, res) {
+  const user = await User.findById(req.user.id);
 
   if (!user) next({ status: 404, message: `User with id: ${req.user.id} not found.` });
 
-  res.status(200).json({ username: user.username, name: user.name });
+  res.status(200).json({ username: user.username, name: user.name, email: user.email });
 }
 
-export function updateUser(req, res) {
-  const username = req.body.username;
-  const name = req.body.name;
-  const password = req.body.password;
+export async function updateUser(req, res) {
+  const { username, name, email } = req.body;
 
   // Grab the user object that is currently logged in
-  db.update();
-  const user = db.users.find((user) => user.id === req.user.id);
+  const user = await User.findByIdAndUpdate(req.user.id, {
+    $set: {
+      ...(username ? { username } : {}),
+      ...(name ? { name } : {}),
+      ...(email ? { email } : {})
+    }
+  }, {
+    new: true,
+    runValidators: true
+  });
 
   if (!user) next({ status: 404, message: `User with id: ${req.user.id} not found.` });
-
-  user.username = username;
-  user.name = name;
-
-  // Only update the password if it is provided
-  if (password) {
-    user.password = password;
-  }
-
-  db.save();
 
   res.status(200).json({
     username: user.username,
     name: user.name,
-    password_status: password ? "updated" : "not updated",
+    email: user.email,
   });
+}
+
+export async function updatePassword(req, res) {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user.id);
+
+  if (!(await user.checkPasswordMatch(oldPassword)))
+    return next({ status: 401, message: "UN_AUTH: Invalid credentials." });
+
+  user.password = newPassword;
+  await user.save(); // run the pre hook to hash password
+
+  return createSendToken(user, 200, res);
 }

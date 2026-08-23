@@ -1,4 +1,4 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
@@ -15,15 +15,16 @@ const userSchema = new mongoose.Schema(
         },
         message: "Name can only conatin alphabit and _",
       },
-      role: {
-        type: String,
-        enum: ["admin", "user"],
-        default: "user",
-      },
-      tokenVersion: {
-        type: Number,
-        default: 0,
-      },
+    },
+    role: {
+      type: String,
+      required: [true, "User must have a role."],
+      enum: ["admin", "user"],
+      default: "user",
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
     },
     username: {
       type: String,
@@ -55,15 +56,13 @@ const userSchema = new mongoose.Schema(
 // --------- Middlewares ---------
 
 // Hashing password before saving
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
   if (!this.isModified("password")) return next();
 
   this.password = await bcrypt.hash(this.password, 12);
 
   // Upgrade token version to reject old login sessions
   if (!this.isNew) this.tokenVersion++;
-
-  next();
 });
 
 // --------- Instance Methods ---------

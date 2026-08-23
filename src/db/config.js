@@ -13,7 +13,7 @@ export async function connectMongoDB() {
       serverSelectionTimeoutMS: isDev ? 5000 : 30000,
     });
 
-    console.log("MongoDB connected successfully! 🥰");
+    console.log("MongoDB connected successfully!");
 
     mongoose.connection.on("error", (err) =>
       console.error("MongoDB connection error:", err),
