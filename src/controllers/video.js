@@ -7,71 +7,11 @@ import { VideoValidator } from "../streams/videoValidator.js";
 import * as FF from "../lib/ff.js";
 import { db } from "../DB.js";
 import util from "node:util";
+import { codecToExtension, codecToMimeType, videoMimeTypes, allowedVideoExt } from "../utils/constants.js"
+import { Video } from "../db/models/video.js";
+import mongoose from "mongoose";
 
-const ALLOWED_EXT = new Set(["mp4", "mov", "webm", "mkv", "avi"]);
 const isCluster = process.env.cluster_mode === "on";
-
-const videoMimeTypes = {
-  mp4: "video/mp4",
-  m4v: "video/x-m4v",
-  mov: "video/quicktime",
-  webm: "video/webm",
-  mkv: "video/x-matroska",
-  avi: "video/x-msvideo",
-  wmv: "video/x-ms-wmv",
-  flv: "video/x-flv",
-  "3gp": "video/3gpp",
-  "3g2": "video/3gpp2",
-  ts: "video/mp2t",
-  mts: "video/mp2t",
-  ogv: "video/ogg",
-  mpeg: "video/mpeg",
-  mpg: "video/mpeg",
-};
-
-const codecToExtension = {
-  aac: "m4a",
-  mp3: "mp3",
-  opus: "opus",
-  vorbis: "ogg",
-  flac: "flac",
-  alac: "m4a",
-  pcm_s16le: "wav",
-  pcm_s24le: "wav",
-  pcm_s32le: "wav",
-  pcm_f32le: "wav",
-  ac3: "ac3",
-  eac3: "eac3",
-  dts: "dts",
-  wmav2: "wma",
-  wmapro: "wma",
-  amr_nb: "amr",
-  amr_wb: "amr",
-  mp2: "mp2",
-  truehd: "thd",
-};
-
-const codecToMimeType = {
-  aac: "audio/aac",
-  mp3: "audio/mpeg",
-  opus: "audio/opus",
-  vorbis: "audio/ogg",
-  flac: "audio/flac",
-  alac: "audio/mp4",
-  pcm_s16le: "audio/wav",
-  pcm_s24le: "audio/wav",
-  pcm_s32le: "audio/wav",
-  pcm_f32le: "audio/wav",
-  ac3: "audio/ac3",
-  eac3: "audio/eac3",
-  dts: "audio/vnd.dts",
-  wmav2: "audio/x-ms-wma",
-  wmapro: "audio/x-ms-wma",
-  amr_nb: "audio/amr",
-  amr_wb: "audio/amr-wb",
-  mp2: "audio/mpeg",
-  truehd: "audio/x-truehd",
-};
 
 export async function uploadVideo(req, res, next) {
   const filename = req.headers.filename;
@@ -84,10 +24,10 @@ export async function uploadVideo(req, res, next) {
   const ext = parsedFile.ext.slice(1).toLowerCase();
 
   // @CUSTOM_ERROR
-  if (!ALLOWED_EXT.has(ext))
+  if (!allowedVideoExt.has(ext))
     next({ status: 422, message: `Error: extension: ${ext || "none"} is not allowed.`})
 
-  const videoId = crypto.randomBytes(4).toString("hex");
+  const videoId = new mongoose.Types.ObjectId();
   const parentPath = `./storage/${videoId}`;
   const vidPath = path.join(parentPath, `original.${ext}`);
   const thumbnailPath = path.join(parentPath, `thumbnail.jpg`);
@@ -106,20 +46,13 @@ export async function uploadVideo(req, res, next) {
     // get video dimensions
     const dimensions = await FF.getDimensions(vidPath);
 
-    // store to db;
-    db.update();
-    db.videos.unshift({
-      id: db.videos.length,
-      videoId,
+    const newVideo = await Video.create({
+      _id: videoId,
       name,
       extension: ext,
       dimensions,
-      userId: req.user.id,
-      extractedAudio: false,
-      resizes: {},
+      user: req.user.id,
     });
-
-    db.save();
 
     return res.status(200).json({
       status: "success",
@@ -140,15 +73,15 @@ export async function uploadVideo(req, res, next) {
 }
 
 export async function getVideos(req, res, next) {
-  db.update();
-  const userVideos = db.videos.filter((v) => v.userId === req.user.id);
+  const userVideos = await Video.find({ user: req.user._id });
 
-  res.status(200).json(userVideos || []);
+  res.status(200).json(userVideos);
 }
 
 export async function getVideoAsset(req, res, next) {
   // if type === resize dimension is required
-  const { videoId, type, dimensions } = req.query;
+  const { type, dimensions } = req.query;
+  const { videoId } = req.params;
 
   // @CUSTOM_ERROR
   if (!videoId || !type) next({ status: 400, message: `Missing required data (video id, type).` });
@@ -157,8 +90,9 @@ export async function getVideoAsset(req, res, next) {
   if (type === "resize" && !dimensions)
     next({ status: 400, message: `Dimensions is required when type resize.`})
 
-  db.update();
-  const video = db.videos.find((v) => v.videoId === videoId);
+  const video = await Video.findById(videoId);
+
+  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found.`})
 
   try {
     const metadata = getMetadata(type, video, dimensions);
@@ -174,23 +108,20 @@ export async function getVideoAsset(req, res, next) {
 }
 
 export async function extractAudio(req, res, next) {
-  const { videoId } = req.query;
+  const { videoId } = req.params;
 
   // @CUSTOM_ERROR
-  if (!videoId) next({ status: 400, message: `Video id is required.` });
+  if (!videoId || !mongoose.Types.ObjectId.isValid(videoId))
+    next({ status: 400, message: `Video id is required.` });
 
-  db.update();
-  const video = db.videos.find((v) => v.videoId === videoId);
+  const video = await Video.findById(videoId);
 
   // @CUSTOM_ERROR
   if (!video) next({ status: 404, message: `Video with id: ${videoId} not found` });
 
   // @CUSTOM_ERROR
-  if (video.extractedAudio)
+  if (video.audio.status !== "extracted")
     next({ status: 400, message: `Audio already extracted for ${video.name} video.` });
-
-  video.extractedAudio = true;
-  db.save();
 
   let audioPath = "";
   try {
@@ -199,10 +130,13 @@ export async function extractAudio(req, res, next) {
     const audioExtension = codecToExtension[codec];
     audioPath = `./storage/${videoId}/audio.${audioExtension}`;
 
+    video.audio = { status: "processing", codec };
+    await video.save()
+
     await FF.extractAudio(originalVideoPath, audioPath);
 
-    video.audioCodec = codec;
-    db.save();
+    video.audio.status = "extracted";
+    await video.save()
 
     res.status(200).json({
       status: "success",
@@ -211,6 +145,7 @@ export async function extractAudio(req, res, next) {
   } catch (e) {
     // no Error if file not exist
     await promiseFs.rm(audioPath, { recursive: true, force: true });
+
     // @CUSTOM_ERROR
     console.error("EXTRACTING AUDIO ERR: ", e);
 
@@ -220,17 +155,15 @@ export async function extractAudio(req, res, next) {
 }
 
 export async function resize(req, res, next) {
-  let { videoId, width, height } = req.body;
+  let { width, height } = req.body;
+  const { videoId } = req.params;
 
   // @CUSTOM_ERROR
-  if (!videoId || !Number(width) || !Number(height))
-    next({ status: 400, message: `Missing required data.` });
+  if (!videoId || mongoose.Types.ObjectId.isValid(videoId))
+    next({ status: 422, message: `Invalid video id.`})
 
-  db.update();
-  const video = db.videos.find((v) => v.videoId === videoId);
-
-  // @CUSTOM_ERROR
-  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found.` });
+  if (!Number(width) || !Number(height))
+    next({ status: 422, message: `Missing required data (width and heigth).` });
 
   const resizeObj = {
     type: "resize",
@@ -252,13 +185,13 @@ export async function resize(req, res, next) {
 
   return res.status(200).json({
     status: "success",
-    message: `Generating ${width}x${height} for ${video.name} video.`,
+    message: `Resizing is taking action.`,
   });
 }
 
 // helpers
 function getMetadata(type, vRecord, dimensions) {
-  const { videoId, name, extension, audioCodec } = vRecord;
+  const { id: videoId, name, extension, audioCodec } = vRecord;
 
   let filePath = "";
   let filename = "";

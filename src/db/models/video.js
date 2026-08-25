@@ -76,19 +76,29 @@ const videoSchema = new mongoose.Schema(
         },
       },
     },
-    // Object for [widthxheight]: Enum status
-    resizes: {
-      type: Map,
-      of: {
-        status: {
-          type: String,
-          enum: {
-            values: ["processing", "finished"],
-            message: "{VALUE} is not a valid status.",
+    // Array for [widthxheight]: Enum status
+    resizes: [{
+      dimensions: {
+        type: String,
+        trim: true,
+        required: [true, "Dimensions is required for new size."],
+        validate: {
+          validator: function (dim) {
+            return /^\d{1,4}[x]\d{1,4}$/.test(dim)
           },
-        },
+          message: "Invalid dimension format e.g. 1200x800."
+        }
       },
-    },
+      status: {
+        type: String,
+        trim: true,
+        required: [true, "resizing status is required."],
+        enum: {
+          values: ["processing", "finished"],
+          message: "{VALUE} is not a valid status."
+        }
+      }
+    }],
   },
   {
     timestamps: true,
@@ -101,7 +111,7 @@ const videoSchema = new mongoose.Schema(
 videoSchema.pre("save", function () {
   if (this.isNew) {
     this.audio ??= {};
-    this.resizes ??= {};
+    this.resizes ??= [];
   }
 });
 

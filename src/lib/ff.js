@@ -47,7 +47,7 @@ export function getDimensions(videoPath) {
       if (code !== 0)
         return rej(new Error(`ffprobe exit with code ${code}: ${stderr}`));
 
-      const [width, height] = dimensions.split("x").map((val) => val?.trim());
+      const [width, height] = dimensions.split("x").map((val) => parseInt(val?.trim()));
       res({ width, height });
     });
   });

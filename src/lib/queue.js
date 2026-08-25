@@ -1,6 +1,7 @@
 import { db } from "../DB.js";
 import promiseFs from "node:fs/promises";
 import * as FF from "./ff.js";
+import { Video } from "../db/models/video.js";
 
 const jobs = [];
 let currentJob = null;
@@ -19,14 +20,13 @@ function dequeue() {
 async function execute() {
   const { videoId, width, height } = currentJob;
 
-  db.update();
-  const video = db.videos.find((v) => v.videoId === videoId);
+  const video = await Video.findById(videoId);
 
   // @CUSTOM_ERROR
   if (!video) throw new Error(`Video with id: ${videoId} not found.`);
 
-  video.resizes[width + "x" + height] = { processing: true };
-  db.save();
+  video.resizes = [{ dimensions: `${width}x${height}`, status: "processing" }, ...video.resizes];
+  await video.save();
 
   const orignalPath = `./storage/${videoId}/original.${video.extension}`;
   const targetPath = `./storage/${videoId}/resizes/${width}x${height}.${video.extension}`;
@@ -35,8 +35,9 @@ async function execute() {
     await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
     await FF.resize(orignalPath, targetPath, Number(width), Number(height));
 
-    video.resizes[width + "x" + height] = { processing: false };
-    db.save();
+    video.resizes = [{ dimensions: `${width}x${height}`, status: "finished" }, ...video.resizes];
+    await video.save();
+
   } catch (e) {
     await promiseFs.rm(targetPath, { recursive: true, force: true });
 
@@ -62,15 +63,15 @@ function executeNext() {
   execute(); // no need to await since it won't executeNext until finishing currentJob
 }
 
-function restartUnprocessedResizes() {
-  db.update();
+async function restartUnprocessedResizes() {
+  const videos = await Video.find({ "resizes.status": "processing" }).select("_id resizes");
 
-  db.videos.forEach((v) => {
-    for (const [diemnsions, state] of Object.entries(v.resizes)) {
-      if (state.processing) {
-        const [width, height] = diemnsions.split("x");
-        enqueue({ type: "resize", videoId: v.videoId, width, height });
-      }
+  if (videos.length <= 0) return;
+
+  videos.forEach((v) => {
+    for (const { dimensions } of v.resizes) {
+      const [width, height] = dimensions.split("x");
+      enqueue({ type: "resize", videoId: v._id, width, height });
     }
   });
 }
