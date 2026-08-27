@@ -155,7 +155,7 @@ export async function extractAudio(req, res, next) {
 }
 
 export async function resize(req, res, next) {
-  let { width, height } = req.body;
+  const { width, height } = req.body;
   const { videoId } = req.params;
 
   // @CUSTOM_ERROR

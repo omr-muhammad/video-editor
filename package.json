@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --env-file=./src/.env --watch-path=./src --trace-warnings src/index.js",
+    "start": "node --env-file=.env --watch-path=./src --trace-warnings src/index.js",
     "cluster": "cluster_mode=on node --env-file=./src/.env --watch-path=./src --trace-warnings src/cluster.js"
   },
   "author": "",

@@ -50,7 +50,7 @@ export function logUserOut(req, res, next) {
   res.status(200).json({ message: "Logged out successfully!" });
 }
 
-export async function sendUserInfo(req, res) {
+export async function sendUserInfo(req, res, next) {
   const user = await User.findById(req.user.id);
 
   if (!user) next({ status: 404, message: `User with id: ${req.user.id} not found.` });
