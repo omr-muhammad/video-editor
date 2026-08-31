@@ -10,5 +10,5 @@ usersRouter.use(User.protect)
 
 
 usersRouter
-  .patch("/password", User.updatePassword)
+  .patch("/me/password", User.updatePassword)
   .post("/logout", User.logUserOut)

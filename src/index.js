@@ -7,12 +7,20 @@ import { connectMongoDB } from "./db/config.js";
 import { usersRouter } from "./routers/usersRouter.js";
 import { authRouter } from "./routers/authRouter.js";
 import { videosRouter } from "./routers/videosRouter.js";
+import cors from "cors";
 
 const PORT = 8000;
 
 const app = express();
 
 // ------ Middlewares ------ //
+
+app.use(
+  cors({
+    origin: "http://127.0.0.1:8001",
+    credentials: true,
+  }),
+);
 
 // For serving static files
 app.use(express.static("public"));
@@ -29,7 +37,7 @@ app.use(cookieParser());
 app
   .use("/api/auth", authRouter)
   .use("/api/users", usersRouter)
-  .use("/api/videos", videosRouter)
+  .use("/api/videos", videosRouter);
 
 app.all("{*splat}", (req, res, next) => {
   return res
@@ -38,19 +46,18 @@ app.all("{*splat}", (req, res, next) => {
 });
 
 // Handle all the errors that could happen in the routes
-app.use((error, req, res) => {
-  if (error && error.status) {
-    res.status(error.status).json({ error: error.message });
-  } else {
-    console.error(error);
-    res.status(500).json({
-      error: "Sorry, something unexpected happened from our side.",
-    });
-  }
+app.use((error, req, res, next) => {
+  if (error && error.status)
+    return res.status(error.status).json({ message: error.message });
+
+  console.error(error);
+  res.status(500).json({
+    error: "Sorry, something unexpected happened from our side.",
+  });
 });
 
 connectMongoDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server has started on port ${PORT}`);
   });
-})
+});

@@ -37,7 +37,7 @@ const videoSchema = new mongoose.Schema(
       status: {
         type: String,
         enum: {
-          values: ["processing", "extracted"],
+          values: ["processing", "noaudio", "extracted"],
           message: "{VALUE} is not a valid audio status",
         },
       },
@@ -46,7 +46,7 @@ const videoSchema = new mongoose.Schema(
         trim: true,
         required: [
           function () {
-            return Boolean(this.audio.status);
+            return this.audio.status === "extracted";
           },
           "Audio codec is required for extracted audios.",
         ],
@@ -77,28 +77,31 @@ const videoSchema = new mongoose.Schema(
       },
     },
     // Array for [widthxheight]: Enum status
-    resizes: [{
-      dimensions: {
-        type: String,
-        trim: true,
-        required: [true, "Dimensions is required for new size."],
-        validate: {
-          validator: function (dim) {
-            return /^\d{1,4}[x]\d{1,4}$/.test(dim)
+    resizes: [
+      {
+        _id: false,
+        dimensions: {
+          type: String,
+          trim: true,
+          required: [true, "Dimensions is required for new size."],
+          validate: {
+            validator: function (dim) {
+              return /^\d{1,4}[x]\d{1,4}$/.test(dim);
+            },
+            message: "Invalid dimension format e.g. 1200x800.",
           },
-          message: "Invalid dimension format e.g. 1200x800."
-        }
+        },
+        status: {
+          type: String,
+          trim: true,
+          required: [true, "resizing status is required."],
+          enum: {
+            values: ["processing", "finished"],
+            message: "{VALUE} is not a valid status.",
+          },
+        },
       },
-      status: {
-        type: String,
-        trim: true,
-        required: [true, "resizing status is required."],
-        enum: {
-          values: ["processing", "finished"],
-          message: "{VALUE} is not a valid status."
-        }
-      }
-    }],
+    ],
   },
   {
     timestamps: true,

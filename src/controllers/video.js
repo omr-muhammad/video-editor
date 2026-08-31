@@ -2,12 +2,18 @@ import crypto from "node:crypto";
 import path from "node:path";
 import promiseFs from "node:fs/promises";
 import fs, { read, stat } from "node:fs";
+import fsPormise from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { VideoValidator } from "../streams/videoValidator.js";
 import * as FF from "../lib/ff.js";
 import { db } from "../DB.js";
 import util from "node:util";
-import { codecToExtension, codecToMimeType, videoMimeTypes, allowedVideoExt } from "../utils/constants.js"
+import {
+  codecToExtension,
+  codecToMimeType,
+  videoMimeTypes,
+  allowedVideoExt,
+} from "../utils/constants.js";
 import { Video } from "../db/models/video.js";
 import mongoose from "mongoose";
 
@@ -17,7 +23,7 @@ export async function uploadVideo(req, res, next) {
   const filename = req.headers.filename;
 
   // @CUSTOM_ERROR
-  if (!filename) next({ status: 422, message: "No file provided." })
+  if (!filename) next({ status: 422, message: "No file provided." });
 
   const parsedFile = path.parse(filename);
   const name = parsedFile.name;
@@ -25,7 +31,10 @@ export async function uploadVideo(req, res, next) {
 
   // @CUSTOM_ERROR
   if (!allowedVideoExt.has(ext))
-    next({ status: 422, message: `Error: extension: ${ext || "none"} is not allowed.`})
+    next({
+      status: 422,
+      message: `Error: extension: ${ext || "none"} is not allowed.`,
+    });
 
   const videoId = new mongoose.Types.ObjectId();
   const parentPath = `./storage/${videoId}`;
@@ -62,11 +71,9 @@ export async function uploadVideo(req, res, next) {
     // @CUSTOM_ERROR
     if (e.code !== "ECONNRESET") {
       console.error(e);
-      if (e instanceof Error)
-        next({ status: 422, messag: e.message })
-
-      else next({ status: 500, message: e.message || "UNKNOWN ERR" })
-    };
+      if (e instanceof Error) next({ status: 422, messag: e.message });
+      else next({ status: 500, message: e.message || "UNKNOWN ERR" });
+    }
     // delete folder && don't throw error if file not exist
     await promiseFs.rm(parentPath, { recursive: true, force: true });
   }
@@ -83,16 +90,22 @@ export async function getVideoAsset(req, res, next) {
   const { type, dimensions } = req.query;
   const { videoId } = req.params;
 
+  console.log("Type: ", type);
+
   // @CUSTOM_ERROR
-  if (!videoId || !type) next({ status: 400, message: `Missing required data (video id, type).` });
+  if (!videoId || !type)
+    next({ status: 400, message: `Missing required data (video id, type).` });
 
   // @CUSTOM_ERROR
   if (type === "resize" && !dimensions)
-    next({ status: 400, message: `Dimensions is required when type resize.`})
+    next({ status: 400, message: `Dimensions is required when type resize.` });
 
   const video = await Video.findById(videoId);
 
-  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found.`})
+  console.log("Video: ", video);
+
+  if (!video)
+    next({ status: 404, message: `Video with id: ${videoId} not found.` });
 
   try {
     const metadata = getMetadata(type, video, dimensions);
@@ -102,9 +115,12 @@ export async function getVideoAsset(req, res, next) {
     console.error("GETTING VIDEO ASSET ERR: ", e);
 
     if (e instanceof Error) next({ status: 400, message: e.message });
-    else next({ status: 500, message: "Something went wrong while getting video asset."})
+    else
+      next({
+        status: 500,
+        message: "Something went wrong while getting video asset.",
+      });
   }
-
 }
 
 export async function extractAudio(req, res, next) {
@@ -112,35 +128,66 @@ export async function extractAudio(req, res, next) {
 
   // @CUSTOM_ERROR
   if (!videoId || !mongoose.Types.ObjectId.isValid(videoId))
-    next({ status: 400, message: `Video id is required.` });
+    next({ status: 400, message: `Video id is required.`, success: false });
 
   const video = await Video.findById(videoId);
 
   // @CUSTOM_ERROR
-  if (!video) next({ status: 404, message: `Video with id: ${videoId} not found` });
+  if (!video)
+    return next({
+      status: 404,
+      message: `Video with id: ${videoId} not found`,
+      success: false,
+    });
+
+  if (video.audio.status === "noaudio")
+    return next({
+      status: 400,
+      message: "Video does not contain audio stream.",
+      success: false,
+    });
 
   // @CUSTOM_ERROR
-  if (video.audio.status !== "extracted")
-    next({ status: 400, message: `Audio already extracted for ${video.name} video.` });
+  if (video.audio.status === "extracted")
+    return next({
+      status: 400,
+      message: `Audio already extracted for ${video.name} video.`,
+      success: false,
+    });
 
   let audioPath = "";
   try {
-    const originalVideoPath = `./storage/${videoId}/original.${video.extension}`;
+    const originalVideoPath = path.resolve(
+      `./storage/${videoId}/original.${video.extension}`,
+    );
     const codec = await FF.getAudioCodec(originalVideoPath);
     const audioExtension = codecToExtension[codec];
     audioPath = `./storage/${videoId}/audio.${audioExtension}`;
 
+    if (!codec) {
+      video.audio = { status: "noaudio" };
+      await video.save();
+
+      return next({
+        status: 400,
+        message:
+          "Failed to extract audio. The input file contains no audio streams (codec is empty or missing).",
+        success: false,
+      });
+    }
+
     video.audio = { status: "processing", codec };
-    await video.save()
+    await video.save();
 
     await FF.extractAudio(originalVideoPath, audioPath);
 
     video.audio.status = "extracted";
-    await video.save()
+    await video.save();
 
     res.status(200).json({
-      status: "success",
+      success: true,
       message: "Audio extracted successfully.",
+      video,
     });
   } catch (e) {
     // no Error if file not exist
@@ -150,7 +197,11 @@ export async function extractAudio(req, res, next) {
     console.error("EXTRACTING AUDIO ERR: ", e);
 
     if (e instanceof Error) next({ status: 400, message: e.message });
-    else next({ status: 500, message: `Something went wrong while extracting audio`})
+    else
+      next({
+        status: 500,
+        message: `Something went wrong while extracting audio`,
+      });
   }
 }
 
@@ -160,7 +211,7 @@ export async function resize(req, res, next) {
 
   // @CUSTOM_ERROR
   if (!videoId || mongoose.Types.ObjectId.isValid(videoId))
-    next({ status: 422, message: `Invalid video id.`})
+    next({ status: 422, message: `Invalid video id.` });
 
   if (!Number(width) || !Number(height))
     next({ status: 422, message: `Missing required data (width and heigth).` });
@@ -176,10 +227,14 @@ export async function resize(req, res, next) {
   else {
     const jobsQ = await import("../lib/queue.js");
     try {
-    jobsQ.enqueue(resizeObj);
+      jobsQ.enqueue(resizeObj);
     } catch (e) {
       if (e.message) return next({ status: 400, message: e.message });
-      else return next({ status: 500, message: `Something went wrong while resizing.`})
+      else
+        return next({
+          status: 500,
+          message: `Something went wrong while resizing.`,
+        });
     }
   }
 
@@ -189,9 +244,34 @@ export async function resize(req, res, next) {
   });
 }
 
+export async function deleteVideo(req, res, next) {
+  const { videoId } = req.params;
+
+  try {
+    if (!videoId || !mongoose.Types.ObjectId.isValid(videoId))
+      return next({ status: 422, message: "Video id is Invalid or missing." });
+
+    await fsPormise.rm(`./storage/${videoId}`, {
+      recursive: true,
+      force: true,
+    });
+
+    await Video.findByIdAndDelete(videoId);
+
+    return res.sendStatus(200);
+  } catch (e) {
+    if (e instanceof Error) return next({ status: 400, message: e.message });
+
+    return next({
+      status: 500,
+      message: `Something went wrong while deleting video with id: ${videoId}`,
+    });
+  }
+}
+
 // helpers
 function getMetadata(type, vRecord, dimensions) {
-  const { id: videoId, name, extension, audioCodec } = vRecord;
+  const { id: videoId, name, extension, audio } = vRecord;
 
   let filePath = "";
   let filename = "";
@@ -211,9 +291,9 @@ function getMetadata(type, vRecord, dimensions) {
       break;
 
     case "audio":
-      filePath = `./storage/${videoId}/audio.${codecToExtension[audioCodec]}`;
-      filename = `${name}-audio.${codecToExtension[audioCodec]}`;
-      mimeType = codecToMimeType[audioCodec];
+      filePath = `./storage/${videoId}/audio.${codecToExtension[audio.codec]}`;
+      filename = `${name}-audio.${codecToExtension[audio.codec]}`;
+      mimeType = codecToMimeType[audio.codec];
       break;
 
     case "resize":

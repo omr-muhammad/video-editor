@@ -6,12 +6,10 @@ export const videosRouter = express.Router();
 
 videosRouter.use(User.protect);
 
-videosRouter
-  .route("/")
-    .get(Video.getVideos)
-    .post(Video.uploadVideo)
+videosRouter.route("/").get(Video.getVideos).post(Video.uploadVideo);
 
 videosRouter
-    .get("/:videoId/asset", Video.getVideoAsset)
-    .post("/:videoId/audio", Video.extractAudio)
-    .post("/:videoId/resize", Video.resize)
+  .delete("/:videoId", Video.deleteVideo)
+  .get("/:videoId/asset", Video.getVideoAsset)
+  .post("/:videoId/audio", Video.extractAudio)
+  .post("/:videoId/resize", Video.resize);

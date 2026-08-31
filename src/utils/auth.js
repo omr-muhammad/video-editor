@@ -20,5 +20,7 @@ export function createSendToken(user, stsCode, res, rememberMe = false) {
 
   res.cookie("auth", token, cookieOptions);
 
-  return res.status(stsCode).json({ message: "successful request." });
+  const { password, tokenVersion, __v, ...rest } = user;
+
+  return res.status(stsCode).json({ user: rest });
 }

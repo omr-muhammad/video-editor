@@ -25,7 +25,10 @@ async function execute() {
   // @CUSTOM_ERROR
   if (!video) throw new Error(`Video with id: ${videoId} not found.`);
 
-  video.resizes = [{ dimensions: `${width}x${height}`, status: "processing" }, ...video.resizes];
+  video.resizes = [
+    { dimensions: `${width}x${height}`, status: "processing" },
+    ...video.resizes,
+  ];
   await video.save();
 
   const orignalPath = `./storage/${videoId}/original.${video.extension}`;
@@ -35,9 +38,8 @@ async function execute() {
     await promiseFs.mkdir(`./storage/${videoId}/resizes`, { recursive: true });
     await FF.resize(orignalPath, targetPath, Number(width), Number(height));
 
-    video.resizes = [{ dimensions: `${width}x${height}`, status: "finished" }, ...video.resizes];
+    video.resizes[0].status = "finished";
     await video.save();
-
   } catch (e) {
     await promiseFs.rm(targetPath, { recursive: true, force: true });
 
@@ -64,7 +66,9 @@ function executeNext() {
 }
 
 async function restartUnprocessedResizes() {
-  const videos = await Video.find({ "resizes.status": "processing" }).select("_id resizes");
+  const videos = await Video.find({ "resizes.status": "processing" }).select(
+    "_id resizes",
+  );
 
   if (videos.length <= 0) return;
 
