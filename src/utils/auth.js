@@ -22,5 +22,5 @@ export function createSendToken(user, stsCode, res, rememberMe = false) {
 
   const { password, tokenVersion, __v, ...rest } = user;
 
-  return res.status(stsCode).json({ user: rest });
+  return res.status(stsCode).json({ success: true, user: rest });
 }

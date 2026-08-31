@@ -8,6 +8,8 @@ import { usersRouter } from "./routers/usersRouter.js";
 import { authRouter } from "./routers/authRouter.js";
 import { videosRouter } from "./routers/videosRouter.js";
 import cors from "cors";
+import mongoose from "mongoose";
+import { handleDBErrors } from "./utils/handleDBErrors.js";
 
 const PORT = 8000;
 
@@ -48,11 +50,16 @@ app.all("{*splat}", (req, res, next) => {
 // Handle all the errors that could happen in the routes
 app.use((error, req, res, next) => {
   if (error && error.status)
-    return res.status(error.status).json({ message: error.message });
+    return res
+      .status(error.status)
+      .json({ success: false, message: error.message });
+
+  if (error instanceof mongoose.Error) return handleDBErrors(error, res);
 
   console.error(error);
   res.status(500).json({
-    error: "Sorry, something unexpected happened from our side.",
+    success: false,
+    message: "Sorry, something unexpected happened from our side.",
   });
 });
 

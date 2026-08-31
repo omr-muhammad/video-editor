@@ -66,11 +66,15 @@ export async function sendUserInfo(req, res, next) {
   const user = await User.findById(req.user.id).lean();
 
   if (!user)
-    next({ status: 404, message: `User with id: ${req.user.id} not found.` });
+    next({
+      status: 404,
+      success: false,
+      message: `User with id: ${req.user.id} not found.`,
+    });
 
-  const { password, tokenVersion, ...rest } = user;
+  const { password, tokenVersion, __v, ...rest } = user;
 
-  res.status(200).json({ user: rest });
+  res.status(200).json({ success: true, user: rest });
 }
 
 export async function updateUser(req, res) {
@@ -87,7 +91,7 @@ export async function updateUser(req, res) {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   );
@@ -95,20 +99,27 @@ export async function updateUser(req, res) {
   if (!user)
     next({ status: 404, message: `User with id: ${req.user.id} not found.` });
 
-  res.status(200).json({
-    username: user.username,
-    name: user.name,
-    email: user.email,
-  });
+  const { password, tokenVersion, __v, ...rest } = user.toObject();
+
+  res.status(200).json({ user: rest });
 }
 
-export async function updatePassword(req, res) {
+export async function updatePassword(req, res, next) {
   const { oldPassword, newPassword } = req.body;
+
+  console.log("credentials: ", req.body);
 
   const user = await User.findById(req.user.id);
 
+  if (!user)
+    return next({ status: 404, success: false, message: "User not found." });
+
   if (!(await user.checkPasswordMatch(oldPassword)))
-    return next({ status: 401, message: "UN_AUTH: Invalid credentials." });
+    return next({
+      status: 401,
+      success: false,
+      message: "Failed to update: Invalid credentials.",
+    });
 
   user.password = newPassword;
   await user.save(); // run the pre hook to hash password
